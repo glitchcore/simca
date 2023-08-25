@@ -1,5 +1,7 @@
-#include    <stdio.h>
-#include    <strings.h>
+#include <stdio.h>
+#include <strings.h>
+#include <stdlib.h>
+#include <stdbool.h>
 
 #define program_version     "v0.1"
 
@@ -46,7 +48,7 @@ t_byte  i_getchar()
     unsigned int    r;
     int res;
 
-    res=fscanf(infile,"%hX",&r);
+    res = fscanf(infile,"%hX", (short unsigned int *)&r);
     if (res==EOF) {
     fprintf(stderr,"[!!]: End of file.\n");
     close_files();
@@ -355,7 +357,7 @@ void CheckSimReply()
     do {
     sw1 = i_getchar();
     if (sw1 == 0x60)
-        fprintf(outfile,"\nSIM: 60 - (SIM needs more time)",sw1,sw2);
+        fprintf(outfile,"\nSIM: 60 - (SIM needs more time)");
     } while (sw1 == 0x60);
 
     // if (sw1==0x9F) ;
@@ -377,13 +379,14 @@ void ReadCommand()
     t_byte  params[255];
     
     cla=i_getchar();
-    if ((cla != 0xA0) && (cla != 0x00)) {
+    if ((cla != 0xA0) && (cla != 0x00) && (cla != 0x80)) {
         fprintf(outfile,"Garbage:");
         while ((cla != 0xA0) && (cla != 0x00)) {
             fprintf(outfile," %02X", cla);
             cla = i_getchar();
         }
         fprintf(outfile,"\n\n");
+        getchar();
     }
 
     do
@@ -395,8 +398,8 @@ void ReadCommand()
     p2=i_getchar();
     p3=i_getchar();
     
-    if (cla != 0xA0 && cla != 0x00) {
-        fprintf(stderr,"[!!]: Invalid command CLA \"%02X\". \"A0\" expected.\n",cla);
+    if (cla != 0xA0 && cla != 0x00 && cla != 0x80) {
+        fprintf(stderr,"[!!]: Invalid command CLA \"%02X\"\n",cla);
         close_files();
         exit(-1);
     }
@@ -412,7 +415,7 @@ void ReadCommand()
         CheckSimEcho(ins);
 
         fprintf(outfile,"ME:");
-        read_block(params,2,0);
+        read_block(params, p3, 0);
         fprintf(outfile," - (File %02X%02X)\n",params[0],params[1]);
         selected_file[0]=params[0];
         selected_file[1]=params[1];
@@ -420,25 +423,25 @@ void ReadCommand()
         CheckSimReply();
         break;
     case    0xF2    :
+        CheckSimEcho(ins);
         fprintf(outfile,"ME:");
-        read_block(params,p3,0);
-        fprintf(outfile," - (Status info)\n",params[0],params[1]);
+        read_block(params, p3, 0);
+        fprintf(outfile," - (Status info) - (%02X %02X)\n",params[0],params[1]);
+        CheckSimReply();
         break;
     case    0xB0    :
         CheckSimEcho(ins);
         fprintf(outfile,"SIM:");
-        if(p1 == 0) {
-            read_block(params, p3, 0);
-            fprintf(outfile," - (Data of file %02X%02X at offset %02X%02X)\n",selected_file[0],selected_file[1],p1,p2);
-            CheckSimReply();
-        } else {
-            read_block(params, 1, 0);
-        }
+        read_block(params, p3, 0);
+        fprintf(outfile," - (Data of file %02X%02X at offset %02X%02X)\n",selected_file[0],selected_file[1],p1,p2);
+        CheckSimReply();
         break;
     case    0xD6    :
+        CheckSimEcho(ins);
         fprintf(outfile,"ME:");
         read_block(params,p3,0);
         fprintf(outfile," - (Data to be written at offset %02X%02X of file %02X%02X)\n",p1,p2,selected_file[0],selected_file[1]);
+        CheckSimReply();
         break;
     case    0xB2    :
         CheckSimEcho(ins);
@@ -463,6 +466,8 @@ void ReadCommand()
         CheckSimReply();
         break;
     case    0xDC    :
+        CheckSimEcho(ins);
+
         fprintf(outfile,"ME:");
         read_block(params,p3,0);
         switch (p2) {
@@ -479,8 +484,11 @@ void ReadCommand()
             fprintf(outfile," - (Data to be written to record %i of file %02X%02X)\n",p1,selected_file[0],selected_file[1]);
             break;
         }
+
+        CheckSimReply();
         break;
     case    0xA2    :   //SEEK - fully implemented
+        CheckSimEcho(ins);
         fprintf(outfile,"ME:");
         read_block(params,p3,0);
         fprintf(outfile," - (Pattern to be seeked in  file %02X%02X)\n",selected_file[0],selected_file[1]);
@@ -489,11 +497,12 @@ void ReadCommand()
         if ((p2 & 0xF0)==1) fprintf(outfile,"Record pointer is set to found record. Returns record number.");
         fprintf(outfile,")\n\t(Mode: %i - ",(p2 & 0x0F));
         switch (p2 & 0x0F) {
-        case    0 : fprintf(outfile,"from teh beggining forward)\n");
-        case    1 : fprintf(outfile,"from the end backward)\n");
-        case    2 : fprintf(outfile,"from the next location forward)\n");
-        case    3 : fprintf(outfile,"from the previous location backward)\n");
+            case    0 : fprintf(outfile,"from teh beggining forward)\n");
+            case    1 : fprintf(outfile,"from the end backward)\n");
+            case    2 : fprintf(outfile,"from the next location forward)\n");
+            case    3 : fprintf(outfile,"from the previous location backward)\n");
         }
+        CheckSimReply();
         break;
     case    0x32    :
         fprintf(outfile,"ME:");
@@ -503,7 +512,8 @@ void ReadCommand()
     case    0x20    :
         fprintf(outfile,"ME:");
         read_block(params,p3,0);
-        fprintf(outfile," - (CHV%02X value to be validated)\n",p2);
+        fprintf(outfile,"%02X - (CHV value to be validated)\n",p2);
+        CheckSimReply();
         break;
     case 0x22:
         fprintf(outfile,"ME:");
@@ -516,8 +526,8 @@ void ReadCommand()
     case    0x24    :   //CHANGE CHV VALUE - fully implemented
         fprintf(outfile,"ME:");
         read_block(params,p3,0);
-        fprintf(outfile," - (Change CHV data)\n",p2);
-        fprintf(outfile,"\t(Target CHV: CHV%i)\n",p2);
+        fprintf(outfile," - (Change CHV data %02X)\n",p2);
+        fprintf(outfile,"\t(Target CHV: CHV %i)\n",p2);
         fprintf(outfile,"\t(Old CHV value: %02X %02X %02X %02X %02X %02X %02X %02X)\n",params[0],params[1],params[2],params[3],params[4],params[5],params[6],params[7]);
         fprintf(outfile,"\t(New CHV value: %02X %02X %02X %02X %02X %02X %02X %02X)\n",params[0],params[1],params[2],params[3],params[4],params[5],params[6],params[7]);
         break;
@@ -525,7 +535,7 @@ void ReadCommand()
     case    0x28    :   //ENABLE CHV - fully implemented
         fprintf(outfile,"ME:");
         read_block(params,p3,0);
-        fprintf(outfile," - (CHV1 value)\n",p2);
+        fprintf(outfile," - (CHV1 value %02X)\n",p2);
         break;
     case    0x2C    :   //UNBLOCK CHV - fully implemented
         fprintf(outfile,"ME:");
@@ -534,6 +544,7 @@ void ReadCommand()
         fprintf(outfile,"\t(Target CHV: CHV%i)\n", (p2==0) ? 1 : p2);
         fprintf(outfile,"\t(UNBLOCK CHV value: %02X %02X %02X %02X %02X %02X %02X %02X)\n",params[0],params[1],params[2],params[3],params[4],params[5],params[6],params[7]);
         fprintf(outfile,"\t(New CHV value: %02X %02X %02X %02X %02X %02X %02X %02X)\n",params[0],params[1],params[2],params[3],params[4],params[5],params[6],params[7]);
+        CheckSimReply();
         break;
     case    0x04    :
     case    0x44    :
@@ -554,10 +565,12 @@ void ReadCommand()
         CheckSimReply();
         break;    
     case    0x10    :
+        CheckSimEcho(ins);
         fprintf(outfile,"ME:");
         read_block(params,p3,0);
         fprintf(outfile," - (Terminal profile of ME)");
         Analyze_TP(params,p3);
+        CheckSimReply();
         break;
     case    0xC2    :
         fprintf(outfile,"ME:");
