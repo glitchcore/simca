@@ -40,7 +40,7 @@ void    close_files()
 
 void    print_line()
 {
-    fprintf(outfile,"---============-----------------------------------------------------------------\n");
+    fprintf(outfile,"\n");
 }
 
 t_byte  i_getchar()
@@ -363,9 +363,9 @@ void CheckSimReply()
     // if (sw1==0x9F) ;
     sw2 = i_getchar();
 
-    fprintf(outfile,"\nSIM: %02X %02X - (",sw1,sw2);
+    fprintf(outfile,"SIM: %02X %02X - (",sw1,sw2);
     print_status(sw1, sw2);
-    fprintf(outfile,")\n\n");
+    fprintf(outfile,")\n");
 }
 
 void ReadCommand()
@@ -408,7 +408,7 @@ void ReadCommand()
 
     last_response_data_command = ins;
 
-    fprintf(outfile,"\n(Processing command %s)\n\n",get_cmd_name(ins));
+    // fprintf(outfile,"\n(Processing command %s)\n\n",get_cmd_name(ins));
     
     switch (ins) {
     case    0xA4    :
@@ -461,6 +461,8 @@ void ReadCommand()
             else
             fprintf(outfile," - (Data of record %i of file %02X%02X)\n",p1,selected_file[0],selected_file[1]);
             break;
+        default:
+            fprintf(outfile,"\n");
         }
 
         CheckSimReply();
@@ -483,6 +485,8 @@ void ReadCommand()
             else
             fprintf(outfile," - (Data to be written to record %i of file %02X%02X)\n",p1,selected_file[0],selected_file[1]);
             break;
+        default:
+            fprintf(outfile,"\n");
         }
 
         CheckSimReply();
@@ -501,6 +505,7 @@ void ReadCommand()
             case    1 : fprintf(outfile,"from the end backward)\n");
             case    2 : fprintf(outfile,"from the next location forward)\n");
             case    3 : fprintf(outfile,"from the previous location backward)\n");
+            default: fprintf(outfile, "unknown)\n");
         }
         CheckSimReply();
         break;
